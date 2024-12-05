@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import numpy.random as rnd
 import scipy.optimize as opt 
-from required_functions import gen_model, gauss_model, pwe_model, c_index, bases
+from required_functions import gen_model, gauss_model, pwe_model, c_index, bases, get_omega
 import time
 from joblib import Parallel, delayed
 import pandas as pd 
@@ -10,7 +10,7 @@ import pandas as pd
 #sample size
 n = 400
 #covariate to sample size  ratio
-zeta = 1.5
+zeta = 0.5
 #number of covariates 
 p = int(n * zeta)
 #true signal strength
@@ -19,7 +19,7 @@ theta0 = 1.0
 etas = np.linspace(6.0, 0.1, 30) #strenght
 alpha = 0.01
 #ripetitions
-m = 50
+m = 10
 #simulate the model parameters from the prior
 beta0 = rnd.normal(size = p)
 beta0 = theta0 * beta0 / np.sqrt(beta0 @ beta0)
@@ -59,7 +59,7 @@ def experiment(counter):
     #fit the model
     pwe.fit(T, C, X, etas, alpha)
     #null model
-    omega_null = pwe.get_omega(np.ones(n), alpha)
+    omega_null = get_omega(pwe.F, pwe.B, np.ones(n), alpha)
     H_null = B_eval @ np.exp(omega_null)
     S_null = np.exp(- np.outer(H_null, np.ones(n)))
     ibs_ref = np.sum( (S_null - S0)**2)*delta/n
@@ -122,7 +122,7 @@ data = {
 }
 
 df = pd.DataFrame(data)
-df.to_csv('sim_zeta'+"{:.2f}".format(zeta)+'_alpha'+"{:.2f}".format(alpha)+'.csv', index = False)
+df.to_csv('data/sim_zeta'+"{:.2f}".format(zeta)+'_alpha'+"{:.2f}".format(alpha)+'.csv', index = False)
 
 
 

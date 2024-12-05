@@ -3,11 +3,13 @@ import numpy.random as rnd
 from scipy.special import lambertw
 import scipy.optimize as opt
 import warnings
+from numba import njit 
 warnings.filterwarnings('ignore')
 #vectorize the lambert function
 vl = np.vectorize(lambertw)
 
 #function that computes the death and risk indicators for the sample
+# @njit
 def bases(t, tps):
     res1 = np.zeros((len(t),len(tps)-1))
     res2 = np.zeros((len(t),len(tps)-1))
@@ -18,6 +20,7 @@ def bases(t, tps):
 
 
 #function that gives tau as a function of zeta
+@njit
 def inv(x, y, z, l):
     err = 1.0
     m = len(y)
@@ -29,6 +32,68 @@ def inv(x, y, z, l):
         b = sum(y/(1.0+x*y)**2)/m + l
         err = abs(z- a)
     return x
+
+# @njit
+def get_omega(F, B, elp, alpha):
+    n = len(elp)
+    a0 = F / n
+    a1 = (elp @ B) / n
+    res = np.zeros(len(a0))
+    if(alpha == 0.0):
+        res = np.log(a0 / a1)
+    else:
+        res = a0 / alpha - np.array( vl( np.exp(a0 / alpha) * a1 / alpha), float)
+    return res
+ 
+# @njit
+def cd(c, x, F, B, alpha, eta, beta0, tol = 1.0e-8):
+    err = 1.0
+    its = 0
+    n = len(c)
+    p = len(beta0)
+    elp =  np.exp(x @ beta0)
+    omega0 = get_omega(F, B, elp, alpha)
+    while(err >= tol):
+        H0 = B @ np.exp(omega0)
+        hess = H0 * elp
+        s = ((hess - c) @ x ) / n
+        I = (np.transpose(x) @ np.diag(hess) @ x) / n
+        mu = I @ beta0
+        beta1 = beta0
+        for k in range(p):
+            xi = I @ beta1
+            phi = s[k] + xi[k] - I[k,k] * beta1[k] - mu[k]
+            tau = I[k,k] + eta
+            beta1[k] = -phi/tau
+        elp =  np.exp(x @ beta1)
+        omega1 = get_omega(F, B, elp, alpha)
+        err =  np.sqrt(sum((beta1 - beta0)**2) +  sum((omega1-omega0)**2))
+        beta0 = beta1
+        omega0 = omega1
+        its = its +1 
+    return beta0, omega0
+
+def newton(c, x, F, B, alpha, eta, beta0, tol = 1.0e-8):
+    err = 1.0
+    its = 0
+    elp =  np.exp(x @ beta0)
+    omega0 = get_omega(F, B, elp, alpha)
+    p = len(beta0)
+    n = len(c)
+    while(err >= tol):
+        H = B @ np.exp(omega0)
+        ddg= H * elp
+        S = ((np.transpose(x) @ np.diag(ddg) @ x) / n) + eta * np.identity(p) 
+        phi = (((ddg - c) @ x) / n) + eta * beta0
+        beta1 = beta0 - np.linalg.inv(S) @ phi
+        lp = x @ beta1
+        elp = np.exp(lp)
+        omega1 = get_omega(F, B, elp, alpha)
+        err = np.sqrt( sum((beta1 - beta0) ** 2) + sum((omega1 - omega0) ** 2))
+        beta0 = beta1
+        omega0 = omega1
+        its = its+1 
+    return beta0, omega0
 
 class gauss_model:
     def __init__(self, theta, phi, rho, t1, t2, model):
@@ -52,7 +117,6 @@ class gauss_model:
             return np.log(1.0+ np.exp(self.phi)*(t**self.rho))
 
     def data_gen(self, n):
-        # print(self.model == 'weibull')
         #generate the data
         Z0 = rnd.normal(size = n)
         Q = rnd.normal(size = n)
@@ -109,7 +173,6 @@ class rs_pwe:
         tau0 = self.tau0
         omega0 = self.omega0
         H = self.B@np.exp(omega0)
-        # print(zeta,tau0,w0,v0,err)
         while (err>1.0e-8):
             z = w0 * self.Z0 + v0 * self.Q + tau0 * self.C
             chi = np.array(vl(tau0 * H * np.exp(z)), float)
@@ -128,8 +191,7 @@ class rs_pwe:
             w0 = w
             tau0 = tau
             omega0 = omega
-            H = self.B @ np.exp(omega0)
-            # print(alpha,w,v,err)
+            H = self.B @ np.exp(omega)
         self.w0 = w0
         self.v0 = v0
         self.omega0 = omega0
@@ -208,126 +270,36 @@ class pwe_model:
             ind = np.array(t>=self.tps[k],int)
             res[:,k] = np.minimum(t-self.tps[k],self.tps[k+1]-self.tps[k])*ind
         return res
-
-    # def fit(self, t, c, x, R):
-    #     b = pwe_model.basis(self,t)
-    #     B = pwe_model.ibasis(self,t)
-    #     F = c@b
-    #     def loss(z):
-    #         beta = z[:self.p]
-    #         w = z[self.p:]
-    #         lp = x@beta
-    #         return ((np.exp(lp)@(B@np.exp(w)) - F@w - c@lp) + 0.5*z@R@z)
-    #     x0 = np.zeros(self.d)
-    #     fit = opt.minimize(loss,x0,method = 'BFGS',tol = 1.0e-8)
-    #     fit = opt.minimize(loss,fit.x,method = 'BFGS',tol = 1.0e-10)
-    #     fit = opt.minimize(loss,fit.x,method = 'BFGS',tol = 1.0e-13)
-    #     return fit.x, fit.fun
     
-
-    def fit(self, t, c, x, etas, alpha, tol = 1.0e-8):
+    def fit(self, t, c, x, etas, alpha):
         self.t = t
         self.c = c
         self.x = x 
         self.n = len(t)
+        self.zeta = self.p / self.n
         self.b = pwe_model.basis(self,t)
         self.B = pwe_model.ibasis(self,t)
         self.F = c @ self.b
         self.etas = etas
         betas = np.zeros((len(etas), self.p))
         omegas = np.zeros((len(etas), self.dgf))
+        if(self.zeta > 1):
+            self.K = self.x @ np.transpose(self.x)
+            varphi = np.zeros(self.n)
         for j in range(len(etas)):
             eta = etas[j]
             if(j == 0):
-                beta0 = np.zeros(self.p)
-                omega0 =  pwe_model.get_omega(self, np.exp(self.x @ beta0), alpha)
-            err = 1.0
-            its = 0
-            elp =  np.exp(self.x @ beta0)
-            H0 = self.B @ np.exp(omega0)
-            while(err >= tol):
-                # print(err, its)
-                hess = H0 * elp
-                s = ((hess - self.c) @ self.x )/self.n
-                I = (np.transpose(self.x) @ np.diag(hess) @ self.x)/self.n
-                mu = I @ beta0
-                beta1 = beta0
-                for k in range(self.p):
-                    xi = I @ beta1
-                    phi = s[k] + xi[k] - I[k,k] * beta1[k] - mu[k]
-                    tau = I[k,k] + eta
-                    beta1[k] = -phi/tau
-                elp =  np.exp(self.x @ beta1)
-                omega1 = pwe_model.get_omega(self, elp, alpha)
-                H1 = self.B @ np.exp(omega0)
-                err =  np.sqrt(sum((beta1 - beta0)**2) +  sum((omega1-omega0)**2))
-                beta0 = beta1
-                omega0 = omega1
-                H0 = H1
-                its = its +1 
-            # print(its)
-            betas[j, :] = beta0
-            omegas[j, :] = omega0
+                beta = np.zeros(self.p)
+                omega =  get_omega(self.F, self.B, np.exp(self.x @ beta), alpha)
+            # beta, omega = cd(self.c, self.x, self.F, self.B, alpha, eta, beta)
+            beta, omega = newton(self.c, self.x, self.F, self.B, alpha, eta, beta)
+            betas[j, :] = beta
+            omegas[j, :] = omega
         self.betas = betas
         self.omegas = omegas
         return 
     
-    def get_omega(self, elp, alpha):
-        a0 = self.F / self.n
-        a1 = (elp @ self.B) / self.n
-        if(alpha == 0.0):
-            res = np.log(a0 / a1)
-        else:
-            res = a0 / alpha - np.array( vl( np.exp(a0 / alpha) * a1 / alpha),float)
-        return res
     
-    # def ridge_newt_update1(self, eta, alpha, beta0, omega0, tol):
-    #     err = 1.0
-    #     its = 0
-    #     elp =  np.exp(self.x @ beta0) 
-    #     H = self.B @ np.exp(omega0)
-    #     while(err >= tol):
-    #         hess = H * elp
-    #         S = (np.transpose(self.x) @ np.diag(hess) @ self.x)/self.n + eta * np.identity(self.p)
-    #         phi = ((hess - self.c) @ self.x)/self.n + eta * beta0
-    #         beta1 = beta0 - np.linalg.inv(S) @ phi
-    #         elp = np.exp(self.x @ beta1)
-    #         omega1 =  pwe_model.get_omega(self, elp, alpha)
-    #         err = np.sqrt( sum((beta1-beta0)**2) + sum((omega1-omega0)**2))
-    #         beta0 = beta1
-    #         omega0 = omega1
-    #         its = its+1 
-    #         H = self.B @ np.exp(omega0)
-    #         print(err, its)
-    #     self.beta0 = beta0
-    #     self.omega0 = omega0
-    #     return beta0, omega0
-    
-    
-    # def ridge_fit(self, t, c, x, etas, ratio, tol = 1.0e-8):
-    #     self.t = t
-    #     self.c = c
-    #     self.x = x 
-    #     self.n = len(t)
-    #     self.b = pwe_model.basis(self,t)
-    #     self.B = pwe_model.ibasis(self,t)
-    #     self.F = c @ self.b
-    #     betas = np.zeros((len(etas), self.p))
-    #     omegas = np.zeros((len(etas), self.dgf))
-    #     self.etas = etas
-    #     for j in range(len(etas)):
-    #         eta = self.etas[j] 
-    #         alpha = self.etas[j] *ratio
-    #         if(j == 0):
-    #             beta0 = np.zeros(self.p)
-    #             omega0 =  pwe_model.get_omega(self, np.exp(self.x @ beta0), alpha)
-    #         beta0, omega0 = pwe_model.ridge_newt_update1(self, eta, alpha, beta0, omega0, tol)
-    #         print(eta, (beta0 @ beta0)/ self.p)
-    #         betas[j, :] = beta0
-    #         omegas[j, :] = omega0
-    #     self.betas = betas
-    #     self.omegas = omegas
-    #     return 
     
     def predict(self, t_eval, x_test):
         b_eval = pwe_model.basis(self,t_eval)
@@ -337,7 +309,7 @@ class pwe_model:
         h_eval = elp * np.transpose(b_eval @ ew) 
         H_eval = elp * np.transpose(B_eval @ ew) 
         S_eval = np.exp(-H_eval)
-        return S_eval #h_eval, H_eval, S_eval
+        return S_eval 
     
 
 

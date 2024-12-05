@@ -6,8 +6,8 @@ import pandas as pd
 #zeta 
 zeta = 2.0
 #lambda values 
-etas = np.arange(6.0, 0.1, -0.01)
-alpha = 1.0
+etas = np.exp(np.linspace(np.log(6.0), np.log(0.1), 100))
+alpha = 0.01
 #true signal strenght
 theta0 = 1.0
 #define the true parameters of the cumulative hazard
@@ -62,5 +62,5 @@ for l in range(len(etas)):
     print(res)
     metrics[l,:] = res
 df = pd.DataFrame(metrics, columns=['etas', 'w', 'v', 'R_ibs', 'c_ind', 'cv_loss'])
-df.to_csv('rs_zeta'+"{:.2f}".format(zeta)+'_alpha'+"{:.2f}".format(alpha)+'.csv', index = False)
+df.to_csv('data/rs_zeta'+"{:.2f}".format(zeta)+'_alpha'+"{:.2f}".format(alpha)+'.csv', index = False)
 
