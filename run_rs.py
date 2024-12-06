@@ -7,7 +7,7 @@ import pandas as pd
 zeta = 2.0
 #lambda values 
 etas = np.exp(np.linspace(np.log(6.0), np.log(0.1), 100))
-alpha = 0.01
+alpha = 0.5
 #true signal strenght
 theta0 = 1.0
 #define the true parameters of the cumulative hazard

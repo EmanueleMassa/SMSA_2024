@@ -10,16 +10,16 @@ import pandas as pd
 #sample size
 n = 400
 #covariate to sample size  ratio
-zeta = 0.5
+zeta = 2.0
 #number of covariates 
 p = int(n * zeta)
 #true signal strength
 theta0 = 1.0
 #regularization path
 etas = np.linspace(6.0, 0.1, 30) #strenght
-alpha = 0.01
+alpha = 0.5
 #ripetitions
-m = 10
+m = 50
 #simulate the model parameters from the prior
 beta0 = rnd.normal(size = p)
 beta0 = theta0 * beta0 / np.sqrt(beta0 @ beta0)
@@ -83,29 +83,29 @@ def experiment(counter):
     return w, v, r_ibs, c_ind
 
 
-# tic = time.time()
-# results = Parallel(n_jobs=12)(delayed(experiment)(counter) for counter in range(m))
-# t_df = pd.DataFrame(results)
-# w = np.stack(t_df.iloc[:, 0].to_numpy())
-# v = np.stack(t_df.iloc[:, 1].to_numpy())
-# R_ibs = np.stack(t_df.iloc[:, 2].to_numpy())
-# c_ind = np.stack(t_df.iloc[:, 3].to_numpy())
-# toc = time.time()
-# print('total elapsed time = ' + str((toc-tic)/60))
+tic = time.time()
+results = Parallel(n_jobs=20)(delayed(experiment)(counter) for counter in range(m))
+t_df = pd.DataFrame(results)
+w = np.stack(t_df.iloc[:, 0].to_numpy())
+v = np.stack(t_df.iloc[:, 1].to_numpy())
+R_ibs = np.stack(t_df.iloc[:, 2].to_numpy())
+c_ind = np.stack(t_df.iloc[:, 3].to_numpy())
+toc = time.time()
+print('total elapsed time = ' + str((toc-tic)/60))
 
-w = np.zeros((m, len(etas)))
-v = np.zeros((m, len(etas)))
-R_ibs = np.zeros((m, len(etas)))
-c_ind = np.zeros((m, len(etas)))
+# w = np.zeros((m, len(etas)))
+# v = np.zeros((m, len(etas)))
+# R_ibs = np.zeros((m, len(etas)))
+# c_ind = np.zeros((m, len(etas)))
 
-big_tic = time.time()
-for i in range(m):
-    tic = time.time()
-    w[i,:], v[i,:], R_ibs[i,:], c_ind[i,:] = experiment(i)
-    toc = time.time()
-    print('elapsed time = ' + str((toc-tic)/60))
-big_toc = time.time()
-print('total elapsed time = ' + str((big_toc-big_tic)/60))
+# big_tic = time.time()
+# for i in range(m):
+#     tic = time.time()
+#     w[i,:], v[i,:], R_ibs[i,:], c_ind[i,:] = experiment(i)
+#     toc = time.time()
+#     print('elapsed time = ' + str((toc-tic)/60))
+# big_toc = time.time()
+# print('total elapsed time = ' + str((big_toc-big_tic)/60))
 
 
 data = {

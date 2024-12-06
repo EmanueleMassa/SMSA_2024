@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 zeta_values = [0.5, 1.0, 1.5, 2.0]
-alpha = 0.01
+alpha = 0.5
 fmt = '_alpha'+"{:.2f}".format(alpha)
 colors = ['r', 'g', 'b', 'y', 'c', 'm']
 plt.figure()
@@ -26,8 +26,7 @@ for i in range(len(zeta_values)) :
     sim_df = pd.read_csv('data/sim'+idf +'.csv')
     plt.errorbar(sim_df['etas'],sim_df['v_mean'],yerr =sim_df['v_std'],fmt = colors[i] +'o', capsize = 3)
     plt.plot(rs_df['etas'],rs_df['v'],colors[i] +'-', label = r'$\zeta = $'+"{:.2f}".format(zeta))
-plt.plot(rs_df['etas'],np.ones(len(rs_df['etas'])),'k--')
-plt.ylabel(r'$\hat{v}_n}$')
+plt.ylabel(r'$\hat{v}_n$')
 plt.xlabel(r'$\eta$')
 plt.ylim(bottom = 0.0, top = 1.5)
 plt.legend()
@@ -53,9 +52,8 @@ for i in range(len(zeta_values)) :
     idf ='_zeta'+"{:.2f}".format(zeta) + fmt
     rs_df = pd.read_csv('data/rs'+idf +'.csv')
     sim_df = pd.read_csv('data/sim'+idf +'.csv')
-    plt.errorbar(sim_df['etas'],sim_df['c_ind_mean'],yerr =sim_df['c_ind_std'],fmt = colors[i] +'o', capsize = 3)
     plt.plot(sim_df['etas'],sim_df['c_ind_mean'],colors[i] +'o')
-    # plt.plot(rs_df['etas'],rs_df['c_ind'],colors[i] +'-', label = r'$\zeta = $'+"{:.2f}".format(zeta))
+    plt.plot(rs_df['etas'],rs_df['c_ind'],colors[i] +'-', label = r'$\zeta = $'+"{:.2f}".format(zeta))
 plt.plot(rs_df['etas'],np.ones(len(rs_df['etas'])),'k-.')
 plt.plot(rs_df['etas'],0.5*np.ones(len(rs_df['etas'])),'k--')
 plt.ylabel(r'$HC_{{\rm test}}$')

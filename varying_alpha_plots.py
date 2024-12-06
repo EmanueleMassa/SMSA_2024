@@ -27,7 +27,7 @@ for i in range(len(alpha_values)) :
     plt.errorbar(sim_df['etas'],sim_df['v_mean'],yerr =sim_df['v_std'],fmt = colors[i] +'o', capsize = 3)
     plt.plot(rs_df['etas'],rs_df['v'],colors[i] +'-',  label = r'$\alpha = $'+"{:.2f}".format(alpha))
 plt.plot(rs_df['etas'],np.ones(len(rs_df['etas'])),'k--')
-plt.ylabel(r'$\hat{v}_n}$')
+plt.ylabel(r'$\hat{v}_n$')
 plt.xlabel(r'$\eta$')
 plt.ylim(bottom = 0.0, top = 1.5)
 plt.legend()
